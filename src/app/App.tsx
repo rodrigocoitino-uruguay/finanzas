@@ -28,6 +28,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { Fab } from './Fab';
 import { Header } from './Header';
 import { TabBar } from './TabBar';
+import { UpdatePrompt } from './UpdatePrompt';
 
 const PANELS: Record<Tab, () => JSX.Element> = {
   summary: SummaryTab,
@@ -164,10 +165,20 @@ function Shell() {
   );
 }
 
+function Root() {
+  const locked = useLock((s) => s.locked);
+  return (
+    <>
+      <Shell />
+      <UpdatePrompt visible={!locked} />
+    </>
+  );
+}
+
 export function App() {
   return (
     <ErrorBoundary>
-      <Shell />
+      <Root />
     </ErrorBoundary>
   );
 }
