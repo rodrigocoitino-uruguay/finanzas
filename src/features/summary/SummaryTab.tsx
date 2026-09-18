@@ -7,12 +7,14 @@ import type { ChartSeries } from '../../components/charts/monthlyTypes';
 import { CHART } from '../../components/charts/theme';
 import { Delta } from '../../components/ui/Delta';
 import { computeTotals, groupShare, monthlySeries } from '../../domain/analytics';
-import { otherCurrency, variation } from '../../domain/money';
+import { otherCurrency, sumMoney, variation } from '../../domain/money';
+import { signedAmountIn } from '../../domain/transactions';
 import { periodLabel } from '../../domain/periods';
 import { cx } from '../../lib/cx';
 import { formatAmount, formatPercent } from '../../lib/format';
 import { useUI } from '../../store/ui';
 import { useAnalytics } from '../analytics/useAnalytics';
+import { AttentionCard } from './AttentionCard';
 
 const SERIES: ChartSeries[] = [
   { key: 'fixed', name: 'Fijos', color: CHART.fixed, kind: 'bar', stack: 'gastos' },
@@ -28,8 +30,14 @@ export function SummaryTab() {
   const data = useMemo(() => {
     const totals = computeTotals(a.current, a.categories, a.currency);
     const other = otherCurrency(a.currency);
+    // Proyección: lo confirmado más los recurrentes pendientes del período.
+    const pending = a.current.filter((t) => t.status === 'pending');
+    const projected = pending.length
+      ? sumMoney([totals.balance, ...pending.map((t) => signedAmountIn(t, a.currency))])
+      : null;
     return {
       totals,
+      projected,
       other,
       balanceOther: computeTotals(a.current, a.categories, other).balance,
       prev: computeTotals(a.previous, a.categories, a.currency),
@@ -73,10 +81,23 @@ export function SummaryTab() {
         >
           {money(totals.balance)}
         </p>
-        <p className={cx('mt-2 text-[13px]', negative ? 'text-negative-soft' : 'text-balance-soft')}>
-          ≈ {formatAmount(data.balanceOther, data.other)}
-        </p>
+        <div
+          className={cx(
+            'mt-2 flex flex-wrap items-baseline justify-between gap-x-3 text-[13px]',
+            negative ? 'text-negative-soft' : 'text-balance-soft',
+          )}
+        >
+          <span>≈ {formatAmount(data.balanceOther, data.other)}</span>
+          {data.projected !== null && (
+            <span aria-label={`Proyectado a fin de mes con los recurrentes pendientes: ${money(data.projected)}`}>
+              {a.period.mode === 'month' ? 'Proyectado a fin de mes' : 'Con pendientes'}{' '}
+              <span className="text-fg">{money(data.projected)}</span>
+            </span>
+          )}
+        </div>
       </section>
+
+      <AttentionCard />
 
       {empty && (
         <section className="flex items-start gap-3 rounded-card border border-line bg-surface p-4">
@@ -103,44 +124,22 @@ export function SummaryTab() {
           value={money(totals.expense)}
           delta={<Delta value={variation(totals.expense, prev.expense)} upIsGood={false} against={against} />}
           onClick={() => setTab('expenses')}
+          footer={
+            totals.expense > 0 && (
+              <span className="mt-2 block" aria-label={`Fijos ${formatPercent(share.fixed, { digits: 0 })}, variables ${formatPercent(share.variable, { digits: 0 })}`}>
+                <span aria-hidden="true" className="flex h-1.5 gap-0.5 overflow-hidden rounded-full">
+                  <span className="h-full rounded-l-full bg-fixed" style={{ width: `${share.fixed * 100}%` }} />
+                  <span className="h-full flex-1 rounded-r-full bg-variable" />
+                </span>
+                <span aria-hidden="true" className="tabular mt-1 flex justify-between text-[11px] text-muted">
+                  <span>Fijos {formatPercent(share.fixed, { digits: 0 })}</span>
+                  <span>Var. {formatPercent(share.variable, { digits: 0 })}</span>
+                </span>
+              </span>
+            )
+          }
         />
       </div>
-
-      {/* Fijos / variables */}
-      <section aria-label="Gastos fijos y variables" className="rounded-card border border-line bg-surface px-4 pt-1 pb-3">
-        <div className="flex items-center justify-between text-[13px]">
-          <button
-            type="button"
-            className="-ml-1 flex min-h-11 items-center gap-1.5 px-1 text-left"
-            onClick={() => showTransactions({ kind: 'expense', group: 'fixed' })}
-          >
-            <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-fixed" />
-            <span className="text-muted">Fijos</span>
-            <span className="tabular">{formatPercent(share.fixed, { digits: 0 })}</span>
-          </button>
-          <button
-            type="button"
-            className="-mr-1 flex min-h-11 items-center gap-1.5 px-1 text-right"
-            onClick={() => showTransactions({ kind: 'expense', group: 'variable' })}
-          >
-            <span className="tabular">{formatPercent(share.variable, { digits: 0 })}</span>
-            <span className="text-muted">Variables</span>
-            <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-variable" />
-          </button>
-        </div>
-        <div aria-hidden="true" className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-line">
-          {totals.expense > 0 && (
-            <>
-              <span className="h-full rounded-l-full bg-fixed transition-[width] duration-250" style={{ width: `${share.fixed * 100}%` }} />
-              <span className="h-full flex-1 rounded-r-full bg-variable" />
-            </>
-          )}
-        </div>
-        <div className="tabular mt-1.5 flex justify-between text-[12px] text-muted">
-          <span>{money(totals.fixed)}</span>
-          <span>{money(totals.variable)}</span>
-        </div>
-      </section>
 
       {/* Últimos 6 meses */}
       <ChartCard
@@ -152,7 +151,7 @@ export function SummaryTab() {
           data={series}
           series={SERIES}
           currency={a.currency}
-          height={128}
+          height={112}
           label={`Gastos fijos y variables apilados e ingresos de los últimos 6 meses. ${series
             .map((p) => `${p.month}: gastos ${money(p.expense)}, ingresos ${money(p.income)}`)
             .join('. ')}`}
@@ -168,15 +167,16 @@ interface TotalCardProps {
   dot: string;
   value: string;
   delta: ReactNode;
+  footer?: ReactNode;
   onClick: () => void;
 }
 
-function TotalCard({ label, dot, value, delta, onClick }: TotalCardProps) {
+function TotalCard({ label, dot, value, delta, footer, onClick }: TotalCardProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="min-w-0 rounded-card border border-line bg-surface px-4 py-3 text-left transition-colors duration-150 active:bg-raised"
+      className="flex min-w-0 flex-col rounded-card border border-line bg-surface px-4 py-3 text-left transition-colors duration-150 active:bg-raised"
     >
       <span className="flex items-center gap-1.5 text-[13px] text-muted">
         <span aria-hidden="true" className={cx('size-2 rounded-full', dot)} />
@@ -192,6 +192,7 @@ function TotalCard({ label, dot, value, delta, onClick }: TotalCardProps) {
         {value}
       </span>
       <span className="mt-0.5 block">{delta}</span>
+      {footer}
     </button>
   );
 }

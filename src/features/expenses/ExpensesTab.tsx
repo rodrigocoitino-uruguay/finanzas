@@ -1,4 +1,3 @@
-import { PiggyBank } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { ChartCard } from '../../components/charts/ChartCard';
 import { Donut } from '../../components/charts/Donut';
@@ -23,6 +22,7 @@ import { capitalize, formatDate, todayISO } from '../../lib/dates';
 import { formatAmount } from '../../lib/format';
 import { useUI, type ExpenseFilter, type ExpenseView } from '../../store/ui';
 import { useAnalytics } from '../analytics/useAnalytics';
+import { BudgetsView } from '../budgets/BudgetsView';
 import { StatRow } from '../analytics/StatRow';
 
 const FILTERS = [
@@ -61,7 +61,7 @@ export function ExpensesTab() {
       <div className="min-h-0 flex-1">
         {view === 'categories' && <CategoriesView filter={filter} />}
         {view === 'evolution' && <EvolutionView filter={filter} />}
-        {view === 'budgets' && <BudgetsPlaceholder />}
+        {view === 'budgets' && <BudgetsView />}
       </div>
     </div>
   );
@@ -176,17 +176,6 @@ function EvolutionView({ filter }: { filter: ExpenseFilter }) {
           { label: 'Mes más bajo', value: min ? money(min[key]) : '—', hint: min ? monthName(min) : undefined },
         ]}
       />
-    </div>
-  );
-}
-
-function BudgetsPlaceholder() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-10 pb-24 text-center">
-      <PiggyBank size={30} strokeWidth={1.2} className="text-muted" aria-hidden="true" />
-      <p className="text-[15px] text-muted">
-        Los presupuestos llegan en la fase 4: un tope mensual por categoría, con aviso al 80&nbsp;% y al 100&nbsp;%.
-      </p>
     </div>
   );
 }

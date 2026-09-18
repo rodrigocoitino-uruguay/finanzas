@@ -18,10 +18,10 @@ import { useRateStatus } from './useRateStatus';
 const HISTORY_ROWS = 45;
 
 export function RateSheet() {
-  const open = useUI((s) => s.rateSheetOpen);
-  const setOpen = useUI((s) => s.setRateSheetOpen);
+  const open = useUI((s) => s.panel === 'rates');
+  const setPanel = useUI((s) => s.setPanel);
   return (
-    <Sheet open={open} onClose={() => setOpen(false)} title="Cotización del dólar">
+    <Sheet open={open} onClose={() => setPanel(null)} title="Cotización del dólar">
       <RateSheetBody />
     </Sheet>
   );

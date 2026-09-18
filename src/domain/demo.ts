@@ -2,7 +2,7 @@ import { lastDayOfMonth } from 'date-fns';
 import { addDaysISO, addMonthsISO, parseISODate, toISODate } from '../lib/dates';
 import { EXPENSE_PALETTE, INCOME_PALETTE, normalizeName } from './categories';
 import { convert, round2 } from './money';
-import type { Category, Currency, Group, Kind, Transaction } from './types';
+import type { Budget, Category, Currency, Group, Kind, Recurring, Transaction } from './types';
 
 /** Generador pseudoaleatorio con semilla (los datos demo son reproducibles). */
 export function mulberry32(seed: number): () => number {
@@ -46,7 +46,24 @@ const CATS: CatSpec[] = [
 export interface DemoData {
   categories: Category[];
   transactions: Transaction[];
+  recurrings: Recurring[];
+  budgets: Budget[];
 }
+
+/** Recurrentes demo: [categoría, día, monto, moneda]. Los del mes en curso quedan pendientes. */
+const DEMO_RECURRING: [string, number, number, Currency][] = [
+  ['Sueldo', 1, 3200, 'USD'],
+  ['Alquiler', 5, 28000, 'UYU'],
+  ['Gastos comunes', 8, 6500, 'UYU'],
+  ['Mutualista', 10, 2450, 'UYU'],
+];
+
+const DEMO_BUDGETS: [string, number, Currency][] = [
+  ['Supermercado', 20000, 'UYU'],
+  ['Comida', 9000, 'UYU'],
+  ['Salidas', 7000, 'UYU'],
+  ['Compras online', 120, 'USD'],
+];
 
 /** Cotización sintética para los datos demo (no se guarda como histórico real). */
 function demoRate(date: string, rnd: () => number): number {
@@ -96,9 +113,23 @@ export function buildDemoData(
     catByName.set(spec.name, cat);
   }
 
+  const currentMonth = today.slice(0, 7);
+  const recurrings: Recurring[] = DEMO_RECURRING.map(([name, day, amount, currency]) => ({
+    id: id('rec'),
+    templateTx: { kind: catByName.get(name)!.kind, amount, currency, categoryId: catByName.get(name)!.id },
+    dayOfMonth: day,
+    active: true,
+    lastGeneratedMonth: currentMonth,
+    isDemo: true,
+  }));
+  const recByName = new Map(DEMO_RECURRING.map(([name], i) => [name, recurrings[i]]));
+
   const transactions: Transaction[] = [];
   const add = (name: string, date: string, amount: number, currency: Currency, note?: string) => {
-    if (date > today) return;
+    const rec = recByName.get(name);
+    const pending = Boolean(rec) && date.startsWith(currentMonth);
+    // Los recurrentes del mes en curso se generan como pendientes (aunque su día no haya llegado).
+    if (date > today && !pending) return;
     const cat = catByName.get(name)!;
     const rate = demoRate(date, rnd);
     const tx: Transaction = {
@@ -110,12 +141,13 @@ export function buildDemoData(
       ...convert(amount, currency, rate),
       categoryId: cat.id,
       date,
-      status: 'confirmed',
+      status: pending ? 'pending' : 'confirmed',
       createdAt: `${date}T12:00:00.000Z`,
       updatedAt: nowISO,
       isDemo: true,
     };
     if (note) tx.note = note;
+    if (rec) tx.recurringId = rec.id;
     transactions.push(tx);
   };
   const between = (min: number, max: number) => min + rnd() * (max - min);
@@ -159,6 +191,14 @@ export function buildDemoData(
     if (rnd() < 0.45) add('Compras online', day(Math.ceil(between(1, daysInMonth))), round2(between(20, 140)), 'USD', 'Amazon');
   }
 
+  const budgets: Budget[] = DEMO_BUDGETS.map(([name, amount, currency]) => ({
+    id: id('bud'),
+    categoryId: catByName.get(name)!.id,
+    amount,
+    currency,
+    isDemo: true,
+  }));
+
   // Uso de las categorías demo (para ordenar las sugerencias)
   for (const cat of categories) {
     const txs = transactions.filter((t) => t.categoryId === cat.id);
@@ -167,5 +207,5 @@ export function buildDemoData(
     if (lastTx) cat.lastUsedAt = `${lastTx}T12:00:00.000Z`;
   }
 
-  return { categories, transactions };
+  return { categories, transactions, recurrings, budgets };
 }

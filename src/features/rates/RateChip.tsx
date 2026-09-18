@@ -5,14 +5,14 @@ import { useRateStatus } from './useRateStatus';
 
 export function RateChip() {
   const { status } = useRateStatus();
-  const open = useUI((s) => s.setRateSheetOpen);
+  const setPanel = useUI((s) => s.setPanel);
   const warn = status.state !== 'ok';
   const Icon = status.state === 'offline' ? CloudOff : warn ? TriangleAlert : status.manual ? PencilLine : null;
 
   return (
     <button
       type="button"
-      onClick={() => open(true)}
+      onClick={() => setPanel('rates')}
       aria-label={`${status.chip}${status.manual ? ', cargada a mano' : ''}${status.detail ? `. ${status.detail}` : ''}. Ver cotización`}
       className="group flex min-h-11 shrink-0 items-center"
     >

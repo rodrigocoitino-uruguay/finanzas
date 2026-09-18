@@ -10,13 +10,30 @@ export async function hasDemoData(): Promise<boolean> {
 
 /** Carga 6 meses de movimientos de ejemplo. No toca los datos reales. */
 export async function loadDemoData(today: string): Promise<{ transactions: number; categories: number }> {
-  return db.transaction('rw', db.transactions, db.categories, async () => {
+  return db.transaction('rw', [db.transactions, db.categories, db.recurrings, db.budgets], async () => {
     if (await hasDemoData()) throw new Error('Los datos de ejemplo ya están cargados');
     const existing = await db.categories.toArray();
     const data = buildDemoData(today, existing, { seed: Date.now() % 1_000_000, makeId: newId });
+
+    // No pisar recurrentes ni topes que ya tengas para esas categorías.
+    const realRecCats = new Set((await db.recurrings.toArray()).map((r) => r.templateTx.categoryId));
+    const recurrings = data.recurrings.filter((r) => !realRecCats.has(r.templateTx.categoryId));
+    const kept = new Set(recurrings.map((r) => r.id));
+    const transactions = data.transactions
+      .filter((t) => !(t.status === 'pending' && t.recurringId && !kept.has(t.recurringId)))
+      .map((t) => {
+        if (!t.recurringId || kept.has(t.recurringId)) return t;
+        const { recurringId: _drop, ...rest } = t;
+        return rest;
+      });
+    const budgetCats = new Set((await db.budgets.toArray()).map((b) => b.categoryId));
+    const budgets = data.budgets.filter((b) => !budgetCats.has(b.categoryId));
+
     await db.categories.bulkAdd(data.categories);
-    await db.transactions.bulkAdd(data.transactions);
-    return { transactions: data.transactions.length, categories: data.categories.length };
+    await db.transactions.bulkAdd(transactions);
+    await db.recurrings.bulkAdd(recurrings);
+    await db.budgets.bulkAdd(budgets);
+    return { transactions: transactions.length, categories: data.categories.length };
   });
 }
 

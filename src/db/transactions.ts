@@ -177,7 +177,8 @@ export async function saveTransaction(input: TransactionInput, now: Date = new D
 
     await db.transactions.put(tx);
 
-    if (!existing || existing.categoryId !== category.id) {
+    const confirmedNow = existing?.status === 'pending' && tx.status === 'confirmed';
+    if (!existing || existing.categoryId !== category.id || confirmedNow) {
       const updated: Category = { ...category, usageCount: category.usageCount + 1, lastUsedAt: nowISO, archived: false };
       await db.categories.put(updated);
       return { tx, category: updated, createdCategory: created };

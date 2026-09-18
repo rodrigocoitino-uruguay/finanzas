@@ -12,6 +12,9 @@ export type ExpenseFilter = 'all' | 'fixed' | 'variable';
 export type ExpenseView = 'categories' | 'evolution' | 'budgets';
 export type IncomeView = 'types' | 'compare';
 
+/** Hojas globales que se abren desde varios lugares. */
+export type Panel = 'rates' | 'pending' | 'budgets' | 'recurring';
+
 export type EntryState =
   | { open: false }
   | { open: true; editId?: string; presetKind?: Kind; key: number };
@@ -28,7 +31,7 @@ interface UIState {
   expenseFilter: ExpenseFilter;
   expenseView: ExpenseView;
   incomeView: IncomeView;
-  rateSheetOpen: boolean;
+  panel: Panel | null;
 
   setTab: (tab: Tab) => void;
   setPeriod: (period: Period) => void;
@@ -44,7 +47,7 @@ interface UIState {
   setExpenseFilter: (f: ExpenseFilter) => void;
   setExpenseView: (v: ExpenseView) => void;
   setIncomeView: (v: IncomeView) => void;
-  setRateSheetOpen: (open: boolean) => void;
+  setPanel: (panel: Panel | null) => void;
 }
 
 let entryKey = 0;
@@ -59,7 +62,7 @@ export const useUI = create<UIState>()((set) => ({
   expenseFilter: 'all',
   expenseView: 'categories',
   incomeView: 'types',
-  rateSheetOpen: false,
+  panel: null,
 
   setTab: (tab) => set({ tab }),
   setPeriod: (period) => set({ period }),
@@ -75,5 +78,5 @@ export const useUI = create<UIState>()((set) => ({
   setExpenseFilter: (expenseFilter) => set({ expenseFilter }),
   setExpenseView: (expenseView) => set({ expenseView }),
   setIncomeView: (incomeView) => set({ incomeView }),
-  setRateSheetOpen: (rateSheetOpen) => set({ rateSheetOpen }),
+  setPanel: (panel) => set({ panel }),
 }));

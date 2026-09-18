@@ -15,9 +15,19 @@ describe('buildDemoData', () => {
     const a = buildDemoData('2026-09-16', []);
     const b = buildDemoData('2026-09-16', []);
     expect(a.transactions.map((t) => t.amount)).toEqual(b.transactions.map((t) => t.amount));
-    expect(a.transactions.every((t) => t.date <= '2026-09-16' && t.date >= '2026-04-01')).toBe(true);
+    expect(a.transactions.every((t) => (t.date <= '2026-09-16' || t.status === 'pending') && t.date >= '2026-04-01')).toBe(true);
     expect(a.transactions.length).toBeGreaterThan(150);
     expect(a.transactions.every((t) => t.isDemo && t.amountUYU > 0 && t.amountUSD > 0)).toBe(true);
+  });
+
+  it('incluye recurrentes (los del mes en curso, pendientes) y presupuestos', () => {
+    const d = buildDemoData('2026-09-03', []);
+    expect(d.recurrings).toHaveLength(4);
+    const pending = d.transactions.filter((t) => t.status === 'pending');
+    expect(pending.map((t) => t.date).sort()).toEqual(['2026-09-01', '2026-09-05', '2026-09-08', '2026-09-10']);
+    expect(pending.every((t) => t.recurringId)).toBe(true);
+    expect(d.transactions.filter((t) => t.recurringId && t.status === 'confirmed').length).toBe(20);
+    expect(d.budgets).toHaveLength(4);
   });
 
   it('reutiliza categorías existentes con el mismo nombre', () => {
@@ -57,8 +67,13 @@ describe('cargar y borrar datos demo', () => {
       categoryId: supermercado.id,
     });
 
+    expect(await db.recurrings.count()).toBe(4);
+    expect(await db.budgets.count()).toBe(4);
+
     await clearDemoData();
     expect(await hasDemoData()).toBe(false);
+    expect(await db.recurrings.count()).toBe(0);
+    expect(await db.budgets.count()).toBe(0);
     const left = await db.transactions.toArray();
     expect(left.map((t) => t.amount).sort()).toEqual([500, 900]);
     expect(left.find((t) => t.id === real.tx.id)).toBeTruthy();

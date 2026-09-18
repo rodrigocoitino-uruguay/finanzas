@@ -5,11 +5,16 @@ import { getSettings } from '../db/settings';
 import { EntrySheet } from '../features/entry/EntrySheet';
 import { ExpensesTab } from '../features/expenses/ExpensesTab';
 import { IncomeTab } from '../features/income/IncomeTab';
+import { BudgetsSheet } from '../features/budgets/BudgetsSheet';
 import { RateSheet } from '../features/rates/RateSheet';
+import { PendingSheet } from '../features/recurring/PendingSheet';
+import { RecurringSheet } from '../features/recurring/RecurringSheet';
+import { generateDueRecurring } from '../db/recurring';
 import { loadSyncStatus, syncRates } from '../features/rates/sync';
 import { SettingsTab } from '../features/settings/SettingsTab';
 import { SummaryTab } from '../features/summary/SummaryTab';
 import { TransactionsTab } from '../features/transactions/TransactionsTab';
+import { todayISO } from '../lib/dates';
 import { requestPersistentStorage, useVisualViewportVars } from '../lib/viewport';
 import { useSettingsStore } from '../store/settings';
 import { useUI, type Tab } from '../store/ui';
@@ -40,17 +45,28 @@ function useBootstrap() {
 
   useEffect(() => {
     let last = Date.now();
-    void loadSyncStatus().then(() => syncRates());
+    // Primero la cotización (hace falta para convertir) y después los recurrentes del mes.
+    const refresh = () =>
+      syncRates()
+        .catch(() => undefined)
+        .then(() => generateDueRecurring(todayISO()))
+        .catch((e) => console.error(e));
+    void loadSyncStatus().then(refresh);
     void requestPersistentStorage();
     const onVisible = () => {
-      if (document.visibilityState !== 'visible' || Date.now() - last < RATES_REFRESH_MS) return;
+      if (document.visibilityState !== 'visible') return;
+      // Si cambió el mes con la app abierta, se generan los recurrentes igual.
+      if (Date.now() - last < RATES_REFRESH_MS) {
+        void generateDueRecurring(todayISO()).catch(() => undefined);
+        return;
+      }
       last = Date.now();
-      void syncRates();
+      void refresh();
     };
     // Al recuperar la conexión, se trae la cotización nueva.
     const onOnline = () => {
       last = Date.now();
-      void syncRates();
+      void refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
@@ -83,6 +99,9 @@ function Shell() {
       <Fab />
       <EntrySheet />
       <RateSheet />
+      <PendingSheet />
+      <BudgetsSheet />
+      <RecurringSheet />
       <Toaster />
     </div>
   );

@@ -1,7 +1,8 @@
-import { Trash2 } from 'lucide-react';
+import { Repeat, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Segmented } from '../../components/ui/Segmented';
+import { Switch } from '../../components/ui/Switch';
 import { Sheet, useSheetHeaderSlot } from '../../components/ui/Sheet';
 import { useCategories, useRates, useTransaction } from '../../db/hooks';
 import {
@@ -14,6 +15,8 @@ import {
 } from '../../db/transactions';
 import { amountToCanonical, canonicalToNumber, displayAmount, parseAmount, sanitizeAmountInput } from '../../domain/amount';
 import { pickRate } from '../../domain/fx';
+import { confirmDate } from '../../domain/recurring';
+import { createRecurringFromTx, skipPending } from '../../db/recurring';
 import { convert, otherCurrency } from '../../domain/money';
 import {
   GROUP_LABEL,
@@ -83,6 +86,9 @@ interface FormState {
   date: string;
   note: string;
   manualRate: string;
+  /** Marcar como recurrente mensual (gastos fijos e ingresos). */
+  repeat: boolean;
+  repeatDay: number;
 }
 
 type FocusField = 'amount' | 'category' | 'note';
@@ -138,9 +144,12 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
         currencyTouched: true,
         query: originalCategory.name,
         categoryId: originalCategory.id,
-        date: original.date,
+        // Un pendiente se confirma con la fecha de hoy si todavía no llegó el día previsto.
+        date: original.status === 'pending' ? confirmDate(original.date, today) : original.date,
         note: original.note ?? '',
         manualRate: '',
+        repeat: Boolean(original.recurringId),
+        repeatDay: Number(original.date.slice(8, 10)),
       };
     }
     const kind = presetKind ?? 'expense';
@@ -154,6 +163,8 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
       date: today,
       note: '',
       manualRate: '',
+      repeat: false,
+      repeatDay: Number(today.slice(8, 10)),
     };
   });
   const [saving, setSaving] = useState(false);
@@ -180,6 +191,7 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
   }, [mode]);
 
   const isEdit = Boolean(original);
+  const isPending = original?.status === 'pending';
   const update = (patch: Partial<FormState>) => {
     setError(null);
     setForm((f) => ({ ...f, ...patch }));
@@ -253,6 +265,7 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
   };
 
   const selectCategory = (c: Category) => update({ categoryId: c.id, query: c.name, group: c.group });
+  const canRepeat = form.kind === 'income' || form.group === 'fixed';
 
   async function save(addAnother: boolean) {
     if (saving) return;
@@ -288,13 +301,28 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
         categoryId: form.categoryId,
         categoryName: form.categoryId ? undefined : form.query,
         rateOverride: rateEdit.mode === 'custom' ? customRate! : needsManualRate ? effectiveRate : undefined,
-        resetRate: rateEdit.mode === 'reset',
+        // Al confirmar un pendiente se usa la cotización de su fecha real.
+        resetRate: rateEdit.mode === 'reset' || (isPending && rateEdit.mode !== 'custom'),
+        status: isPending ? 'confirmed' : undefined,
       });
       if (form.kind === 'expense') setLastExpenseGroup(res.category.group as ExpenseGroup);
-      const label = isEdit ? 'Cambios guardados' : form.kind === 'expense' ? 'Gasto guardado' : 'Ingreso guardado';
-      toast(res.createdCategory ? `${label} · nueva categoría «${res.category.name}»` : label);
+      const repeats = form.repeat && canRepeat && !res.tx.recurringId;
+      if (repeats) await createRecurringFromTx(res.tx.id, form.repeatDay, today);
+      const label = isPending
+        ? 'Confirmado'
+        : isEdit
+          ? 'Cambios guardados'
+          : form.kind === 'expense'
+            ? 'Gasto guardado'
+            : 'Ingreso guardado';
+      const extra = res.createdCategory
+        ? ` · nueva categoría «${res.category.name}»`
+        : repeats
+          ? ` · se repite el día ${form.repeatDay}`
+          : '';
+      toast(`${label}${extra}`);
       if (addAnother) {
-        setForm((f) => ({ ...f, amount: '', query: '', categoryId: undefined, note: '' }));
+        setForm((f) => ({ ...f, amount: '', query: '', categoryId: undefined, note: '', repeat: false }));
         amountRef.current?.focus({ preventScroll: true });
       } else {
         onDone();
@@ -306,6 +334,19 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
       if (!(e instanceof ValidationError || e instanceof NoRateError)) console.error(e);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function skip() {
+    if (!original) return;
+    const removed = await skipPending(original.id);
+    onDone();
+    if (removed) {
+      toast('Salteado este mes', {
+        actionLabel: 'Deshacer',
+        duration: 5000,
+        onAction: () => void restoreTransaction(removed),
+      });
     }
   }
 
@@ -484,6 +525,49 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
           </div>
         )}
 
+        {show.date && canRepeat && !original?.recurringId && (
+          <div className="rounded-xl border border-line px-3">
+            <Switch
+              checked={form.repeat}
+              onChange={(repeat) => update({ repeat })}
+              label="Repetir todos los meses"
+              description={
+                form.repeat
+                  ? 'Cada mes vas a ver un pendiente para confirmar, editar o saltear'
+                  : form.kind === 'income'
+                    ? 'Por ejemplo, el sueldo'
+                    : 'Por ejemplo, alquiler o gastos comunes'
+              }
+              tone={tone}
+            />
+            {form.repeat && (
+              <label className="flex min-h-12 items-center justify-between gap-3 border-t border-line text-[15px]">
+                Día del mes
+                <select
+                  value={form.repeatDay}
+                  onChange={(e) => update({ repeatDay: Number(e.target.value) })}
+                  className="tabular min-h-10 rounded-lg border border-line bg-raised px-3 text-fg"
+                >
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d}>
+                      {d === 31 ? '31 (o último día)' : d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        )}
+
+        {show.date && original?.recurringId && (
+          <p className="flex items-center gap-2 text-[13px] text-muted">
+            <Repeat size={15} strokeWidth={1.5} aria-hidden="true" />
+            {isPending
+              ? 'Pendiente de un recurrente: confirmalo cuando se pague o cobre.'
+              : 'Parte de un recurrente mensual. Se gestiona en Ajustes → Recurrentes.'}
+          </p>
+        )}
+
         <div className={show.note ? undefined : 'hidden'}>
           <label htmlFor="entry-note" className="mb-1.5 block text-[13px] text-muted">
             Nota (opcional)
@@ -528,7 +612,15 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
             </p>
           )}
           <div className="flex gap-2">
-            {isEdit ? (
+            {isPending ? (
+              <button
+                type="button"
+                onClick={() => void skip()}
+                className="min-h-12 flex-1 rounded-full border border-line px-4 text-[15px] active:bg-raised"
+              >
+                Saltear este mes
+              </button>
+            ) : isEdit ? (
               <button
                 type="button"
                 onClick={() => void remove()}
@@ -557,7 +649,7 @@ function EntryForm({ original, originalCategory, presetKind, onDone }: EntryForm
                 saving && 'opacity-60',
               )}
             >
-              {isEdit ? 'Guardar cambios' : 'Guardar'}
+              {isPending ? 'Confirmar' : isEdit ? 'Guardar cambios' : 'Guardar'}
             </button>
           </div>
         </div>

@@ -5,12 +5,17 @@ import { ConfirmSheet } from '../../components/ui/ConfirmSheet';
 import { clearDemoData, hasDemoData, loadDemoData } from '../../db/demo';
 import { todayISO } from '../../lib/dates';
 import { toast } from '../../store/toast';
-import { useUI } from '../../store/ui';
+import { useUI, type Panel } from '../../store/ui';
 import { useRateStatus } from '../rates/useRateStatus';
 
 export function SettingsTab() {
   return (
     <div className="scroll-area h-full space-y-6 px-5 pt-2 pb-28">
+      <Group title="Movimientos">
+        <PanelRow icon={Repeat} label="Recurrentes" hint="Ver, editar, pausar" panel="recurring" />
+        <PanelRow icon={Wallet} label="Presupuestos" hint="Topes mensuales" panel="budgets" />
+      </Group>
+
       <Group title="Cotización">
         <RateRow />
       </Group>
@@ -19,8 +24,6 @@ export function SettingsTab() {
 
       <Group title="Próximamente">
         <Row icon={Tags} label="Categorías" hint="Fase 5" />
-        <Row icon={Wallet} label="Presupuestos" hint="Fase 4" />
-        <Row icon={Repeat} label="Recurrentes" hint="Fase 4" />
         <Row icon={Coins} label="Moneda" hint="Fase 5" />
         <Row icon={KeyRound} label="Seguridad: PIN y Face ID" hint="Fase 5" />
         <Row icon={Save} label="Respaldo e importación" hint="Fase 5" />
@@ -53,13 +56,25 @@ function Row({ icon: Icon, label, hint }: { icon: LucideIcon; label: string; hin
   );
 }
 
+function PanelRow({ icon: Icon, label, hint, panel }: { icon: LucideIcon; label: string; hint: string; panel: Panel }) {
+  const setPanel = useUI((s) => s.setPanel);
+  return (
+    <button type="button" onClick={() => setPanel(panel)} className="flex min-h-12 w-full items-center gap-3 px-4 text-left active:bg-raised">
+      <Icon size={18} strokeWidth={1.5} className="shrink-0 text-muted" aria-hidden="true" />
+      <span className="flex-1 text-[15px]">{label}</span>
+      <span className="text-[12px] text-muted">{hint}</span>
+      <ChevronRight size={16} strokeWidth={1.5} className="text-muted" aria-hidden="true" />
+    </button>
+  );
+}
+
 function RateRow() {
-  const open = useUI((s) => s.setRateSheetOpen);
+  const setPanel = useUI((s) => s.setPanel);
   const { status } = useRateStatus();
   return (
     <button
       type="button"
-      onClick={() => open(true)}
+      onClick={() => setPanel('rates')}
       className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left active:bg-raised"
     >
       <RefreshCw size={18} strokeWidth={1.5} className="shrink-0 text-muted" aria-hidden="true" />

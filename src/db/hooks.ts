@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
 import type { DateRange } from '../domain/periods';
-import type { Category, Rate, Transaction } from '../domain/types';
+import type { Budget, Category, Rate, Recurring, Transaction } from '../domain/types';
 import { db } from './db';
 import { listTransactionsInRange } from './transactions';
 
@@ -28,4 +28,21 @@ export function useTransactionsInRange(range: DateRange): Transaction[] | undefi
 
 export function useTransaction(id: string | undefined): Transaction | undefined {
   return useLiveQuery(() => (id ? db.transactions.get(id) : undefined), [id]);
+}
+
+const EMPTY_RECURRINGS: Recurring[] = [];
+const EMPTY_BUDGETS: Budget[] = [];
+const EMPTY_TXS: Transaction[] = [];
+
+export function useRecurrings(): Recurring[] {
+  return useLiveQuery(() => db.recurrings.toArray(), [], EMPTY_RECURRINGS);
+}
+
+export function useBudgets(): Budget[] {
+  return useLiveQuery(() => db.budgets.toArray(), [], EMPTY_BUDGETS);
+}
+
+/** Recurrentes generados que esperan confirmación (de cualquier mes), por fecha. */
+export function usePendingTransactions(): Transaction[] {
+  return useLiveQuery(() => db.transactions.where('status').equals('pending').sortBy('date'), [], EMPTY_TXS);
 }
