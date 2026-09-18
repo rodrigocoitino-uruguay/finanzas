@@ -1,0 +1,44 @@
+# Dependencias y builds
+node_modules/
+dist/
+dev-dist/
+coverage/
+*.tsbuildinfo
+
+# Sistema / editores
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Variables de entorno (la app no usa secretos, pero por las dudas)
+.env
+.env.*
+
+# NUNCA subir datos personales: respaldos exportados desde la app
+*finanzas-respaldo*.json
+*finanzas-movimientos*.csv
+backups/
+respaldos/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Configuración local de herramientas
+.claude/
+
+# NUNCA subir archivos personales que queden sueltos en la carpeta del proyecto
+*recovery-codes*
+*recovery_codes*
+/*.txt
+/*.jpeg
+/*.jpg
+/*.png
+/*.heic
+/*.pdf
+/*.csv
+/*.json
+!/package.json
+!/package-lock.json
+!/tsconfig.json

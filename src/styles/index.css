@@ -1,0 +1,205 @@
+@import 'tailwindcss';
+
+/* Inter auto-alojada (funciona offline). Licencia OFL en src/assets/fonts. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../assets/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ── Design tokens ─────────────────────────────────────────────── */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Superficies */
+  --color-bg: #0a0a0a;
+  --color-surface: #121212;
+  --color-raised: #1a1a1a;
+  --color-line: #262626;
+
+  /* Texto (AA sobre todas las superficies) */
+  --color-fg: #f5f5f5;
+  --color-muted: #a3a3a3;
+
+  /* Semánticos */
+  --color-income: #34d399; /* 9,7:1 sobre surface */
+  --color-expense: #4f8cff; /* 5,8:1 */
+  --color-fixed: #375fb9; /* gastos fijos: azul profundo (gráficos) */
+  --color-variable: #489dd8; /* gastos variables: azul claro (gráficos) */
+  --color-salary: #34d399; /* ingresos por tipo (gráficos) */
+  --color-freelance: #0698a4;
+  --color-other-income: #227702;
+  --color-others: #737373; /* porción "Otros" */
+  --color-balance: #1f8a5b; /* 4,57:1 solo sobre bg: acentos y líneas */
+  --color-balance-deep: #166b47; /* fondo de la tarjeta de saldo: texto fg 5,97:1 */
+  --color-balance-soft: #cfeadd; /* texto secundario sobre balance-deep: 5,1:1 */
+  --color-negative-bg: #2a2316; /* tarjeta de saldo negativo (ámbar apagado) */
+  --color-negative-soft: #d9c4a0; /* texto secundario sobre negative-bg: 9,2:1 */
+  --color-warn: #c9a063; /* ámbar apagado: saldo negativo, presupuesto 80–100 % */
+  --color-alert: #e07a5f; /* terracota sobria: presupuesto > 100 %, borrar */
+
+  --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  /* Títulos: la fuente del sistema (SF Pro en iPhone y Mac), la típica de las apps de iOS.
+     No se descarga nada: ya viene en el dispositivo. */
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --radius-card: 16px;
+  --radius-sheet: 22px;
+
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --animate-fade-in: fade-in 180ms ease-out both;
+  --animate-fade-out: fade-out 180ms ease-in both;
+  --animate-sheet-in: sheet-in 240ms var(--ease-soft) both;
+  --animate-sheet-out: sheet-out 200ms ease-in both;
+  --animate-rise: rise 220ms var(--ease-soft) both;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes sheet-out {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}
+
+/* Alturas compartidas del layout */
+:root {
+  --header-h: 104px;
+  --tabbar-h: 56px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    color-scheme: dark;
+    background: var(--color-bg);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    /* La página nunca scrollea: solo las listas internas. Evita el "rebote" de iOS. */
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  input,
+  textarea,
+  select {
+    /* ≥ 16px: iOS no hace zoom al enfocar */
+    font-size: max(16px, 1em);
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-expense);
+    outline-offset: 2px;
+  }
+
+  input[type='date']::-webkit-date-and-time-value {
+    text-align: left;
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-expense) 40%, transparent);
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+@utility scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility hairline {
+  border-color: var(--color-line);
+  border-width: 1px;
+}
+
+/* Respetar "Reducir movimiento" */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
