@@ -81,7 +81,12 @@ export interface Settings {
   pinHash?: string;
   pinSalt?: string;
   pinIterations?: number;
+  /** Cantidad de dígitos (para enviar solo al completar el PIN). */
+  pinLength?: number;
   webauthnCredentialId?: string;
+  /** Clave pública (SPKI, base64) para verificar la firma de Face ID / Touch ID. */
+  webauthnPublicKey?: string;
+  webauthnAlg?: number;
   autoLockMinutes: number;
   lastBackupAt?: string;
   schemaVersion: number;

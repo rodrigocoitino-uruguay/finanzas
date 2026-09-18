@@ -13,7 +13,7 @@ export type ExpenseView = 'categories' | 'evolution' | 'budgets';
 export type IncomeView = 'types' | 'compare';
 
 /** Hojas globales que se abren desde varios lugares. */
-export type Panel = 'rates' | 'pending' | 'budgets' | 'recurring';
+export type Panel = 'rates' | 'pending' | 'budgets' | 'recurring' | 'categories' | 'security' | 'backup';
 
 export type EntryState =
   | { open: false }
